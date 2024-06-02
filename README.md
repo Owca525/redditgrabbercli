@@ -9,7 +9,7 @@ This is a simple tool for scraping things from Reddit, created because of the au
 
 # Requirements
 - [python 12](https://www.python.org/)
-- [httpx](https://www.python-httpx.org/)
+- [httpx 0.27.0](https://www.python-httpx.org/)
 
 # Credits
 [Owca525](https://github.com/Owca525): Creator
