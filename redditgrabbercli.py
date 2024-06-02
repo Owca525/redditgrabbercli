@@ -2,7 +2,7 @@
 
 #############################################################################
 ######################## This script Made Owca525 ###########################
-################################ Ver 1.2 ####################################
+################################ Ver 1.2.2 ##################################
 #############################################################################
 
 Github: https://github.com/Owca525/
@@ -179,10 +179,13 @@ class post_grabber:
             url = f"https://old.reddit.com/r/{self.subreddit[0]}/comments/" + re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',url)[0]
 
         req = httpx.get(url=url.replace("www.reddit.com","old.reddit.com").replace("i.reddit.com","old.reddit.com").replace("new.reddit.com","old.reddit.com"),headers=head3)
+        if req.headers["location"] != None:
+            req = httpx.get(url=str(req.headers["location"]), headers=head3)
 
         if req.text != None and req.status_code == 200:
             self.html_content = req.text
             content = self.find_content()
+            print(req.url)
 
             if content[1] != [] and re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/)?gallery\/',content[1][0]) == []:
                 return content[1]
@@ -225,11 +228,10 @@ class main:
         
         if re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/)?gallery\/',url) != []:
             print("[\033[34mInfo\033[0m] Gallery Download")
-            post = post_grabber(subreddit=re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/([^\s\/$.?#]+)', self.subreddit))
             postID = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',url)[0]
             create_directory(self.output + postID)
-            post.grabber(url)
-            for item in post.grabber(url):
+            for item in post_grabber(subreddit=re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/([^\s\/$.?#]+)', self.subreddit)).grabber(url):
+                print(item)
                 downloader(
                     url=item,
                     output=self.output + postID
@@ -270,7 +272,8 @@ class main:
             exit()
 
         if self.subreddit != None:
-            for item in range(self.page):
+            for i,item in enumerate(range(self.page)):
+                print(f"[\033[34mInfo\033[0m] page {i} ({i * 25})")
                 sub = subreddit_grabber()
                 sub.grabber(self.subreddit)
                 #map(self.sort, sub.post)9
