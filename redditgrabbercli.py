@@ -2,7 +2,7 @@
 
 #############################################################################
 ######################## This script Made Owca525 ###########################
-################################ Ver 1.2.2 ##################################
+################################ Ver 1.3 ####################################
 #############################################################################
 
 Github: https://github.com/Owca525/
@@ -178,14 +178,20 @@ class post_grabber:
         if findID != []:
             url = f"https://old.reddit.com/r/{self.subreddit[0]}/comments/" + re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',url)[0]
 
-        req = httpx.get(url=url.replace("www.reddit.com","old.reddit.com").replace("i.reddit.com","old.reddit.com").replace("new.reddit.com","old.reddit.com"),headers=head3)
+        try:
+            req = httpx.get(url=url.replace("www.reddit.com","old.reddit.com").replace("i.reddit.com","old.reddit.com").replace("new.reddit.com","old.reddit.com"),headers=head3)
+        except httpx.ConnectTimeout:
+            return []
+
+        if req.status_code == 404:
+            return []
+
         if req.headers["location"] != None:
             req = httpx.get(url=str(req.headers["location"]), headers=head3)
 
         if req.text != None and req.status_code == 200:
             self.html_content = req.text
             content = self.find_content()
-            print(req.url)
 
             if content[1] != [] and re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/)?gallery\/',content[1][0]) == []:
                 return content[1]
@@ -208,11 +214,19 @@ class subreddit_grabber:
         self.next_button = str
 
     def grabber(self, url):
-        connect = httpx.get(url=url.replace("www.reddit.com","old.reddit.com").replace("i.reddit.com","old.reddit.com").replace("new.reddit.com","old.reddit.com"),headers=head3)
+        try:
+            connect = httpx.get(url=url.replace("www.reddit.com","old.reddit.com").replace("i.reddit.com","old.reddit.com").replace("new.reddit.com","old.reddit.com"),headers=head3)
+        except TypeError:
+            print("[\033[34mInfo\033[0m] Subreddit End")
+            exit()
 
         if connect.status_code == 200:
-            self.next_button = re.findall(r'<span\s+class="next-button"[^>]*>\s*<a\s+href="([^"]+)"[^>]*>.*?</a>\s*</span>', connect.text)[0].replace("amp;","")
-            self.posts = re.findall(r'<a\s+[^>]*\bclass="[^"]*thumbnail[^"]*"\s+[^>]*\bhref="([^"]+)"[^>]*>',connect.text)
+            try:
+                self.next_button = re.findall(r'<span\s+class="next-button"[^>]*>\s*<a\s+href="([^"]+)"[^>]*>.*?</a>\s*</span>', connect.text)[0].replace("amp;","")
+                self.posts = re.findall(r'<a\s+[^>]*\bclass="[^"]*thumbnail[^"]*"\s+[^>]*\bhref="([^"]+)"[^>]*>',connect.text)
+            except IndexError:
+                print("[\033[34mInfo\033[0m] Subreddit End")
+                exit()
     
 class main:
     def __init__(self, url: str, output: str, subreddit: str, page: int) -> None:
@@ -222,6 +236,9 @@ class main:
         self.subreddit = subreddit
     
     def sort(self, url):
+        if re.findall(r'^\/r\/([^\s\/$.?#]+)\/comments\/([^\s\/$.?#]+)\/[^\s\/$.?#]+\/$',url) != []:
+            url = "https://old.reddit.com" + url
+
         if re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',url) == []:
             print(f"[\033[32mURL Extracted\033[0m]: {url}")
             return
@@ -231,7 +248,6 @@ class main:
             postID = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',url)[0]
             create_directory(self.output + postID)
             for item in post_grabber(subreddit=re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/([^\s\/$.?#]+)', self.subreddit)).grabber(url):
-                print(item)
                 downloader(
                     url=item,
                     output=self.output + postID
@@ -243,70 +259,91 @@ class main:
             output=self.output
         ).run()
     
-    def run(self):
-        if self.url != None:
-            urls = post_grabber().grabber(self.url)
-            if urls == []:
-                print("[\033[34mInfo\033[0m] Nothing found")
-                exit()
-            
-            if re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',urls[0]) == []:
-                for item in urls:
-                    print(f"[\033[32mURL Extracted\033[0m]: {item}")
-                exit()
+    def option(self):
+        try:
+            opt = str(input("\033[34mDo you want delete folder?\033[0m [y/N] "))
 
-            if len(urls) == 1:
-                downloader(
-                    url=urls[0],
-                    output=self.output
-                ).run()
-                exit()
+            if opt.lower() == "y" or opt.lower() == "yes":
+                print(f"[\033[34mInfo\033[0m] Deleting: {self.output}")
+                os.remove(self.output)
+                return
             
-            postID = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',self.url)[0]
-            create_directory(self.output + postID)
-            for item in urls:
-                downloader(
-                    url=item,
-                    output=self.output + postID
-                ).run()
+            if opt.lower() == "n" or opt.lower() == "no" or opt == "":
+                return
+        except KeyboardInterrupt:
             exit()
 
-        if self.subreddit != None:
-            for i,item in enumerate(range(self.page)):
-                print(f"[\033[34mInfo\033[0m] page {i} ({i * 25})")
-                sub = subreddit_grabber()
-                sub.grabber(self.subreddit)
-                #map(self.sort, sub.post)9
-                for item in list(set(sub.posts)):
-                    self.sort(item)
-                self.subreddit = sub.next_button
+    def run(self):
+        try:
+            if self.url != None:
+                urls = post_grabber().grabber(self.url)
+                if urls == []:
+                    print("[\033[34mInfo\033[0m] Nothing found")
+                    exit()
+                
+                if re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',urls[0]) == []:
+                    for item in urls:
+                        print(f"[\033[32mURL Extracted\033[0m]: {item}")
+                    exit()
+
+                if len(urls) == 1:
+                    downloader(
+                        url=urls[0],
+                        output=self.output
+                    ).run()
+                    exit()
+                
+                postID = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',self.url)[0]
+                create_directory(self.output + postID)
+                for item in urls:
+                    downloader(
+                        url=item,
+                        output=self.output + postID
+                    ).run()
+                    pass
+                exit()
+
+            if self.subreddit != None:
+                for i,item in enumerate(range(self.page)):
+                    print(f"[\033[34mInfo\033[0m] page {i+1} ({(i+1) * 25})")
+                    sub = subreddit_grabber()
+                    sub.grabber(self.subreddit)
+                    #map(self.sort, sub.post)
+                    for item in list(set(sub.posts)):
+                        self.sort(item)
+                    self.subreddit = sub.next_button
+        except KeyboardInterrupt:
+            self.option()
 
 if __name__ == "__main__":
-    parser.add_argument("-u","--url", help="url", type=str)
-    parser.add_argument("-o","--output", help="set output location", type=str,metavar=('output'))
-    parser.add_argument("-p", "--page", help="page download (default 1)",default=1, type=int)
-    parser.add_argument("-s", "--subreddit", help="name subreddit", type=str)
-    args = parser.parse_args()
+    try:
+        parser.add_argument("-u","--url", help="url", type=str)
+        parser.add_argument("-o","--output", help="set output location", type=str,metavar=('output'))
+        parser.add_argument("-p", "--page", help="page download (default 1)",default=1, type=int)
+        parser.add_argument("-s", "--subreddit", help="name subreddit", type=str)
+        args = parser.parse_args()
 
-    if args.subreddit == None and re.findall(r'^(https?:\/\/)?(www\.|old\.|i\.|new\.)?(reddit\.com|redd\.it)\/[^\s\/$.?#].[^\s]*$',str(args.url)) == [] and args.url:
-        print('[\033[31mError\033[0m] Wrong url')
-        exit()
-    
-    if args.subreddit != None:
-        connect = httpx.get(url=re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/[^\s\/$.?#]+', args.subreddit)[0])
-        if connect.status_code == 404:
-            print("[\033[31mError\033[0m] Subreddit Doesn't exist")
+        if args.subreddit == None and re.findall(r'^(https?:\/\/)?(www\.|old\.|i\.|new\.)?(reddit\.com|redd\.it)\/[^\s\/$.?#].[^\s]*$',str(args.url)) == [] and args.url:
+            print('[\033[31mError\033[0m] Wrong url')
             exit()
-        args.subreddit = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/[^\s\/$.?#]+', args.subreddit)[0] + "/"
+        
+        if args.subreddit != None:
+            connect = httpx.get(url=re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/[^\s\/$.?#]+', args.subreddit)[0])
+            if connect.status_code == 404:
+                print("[\033[31mError\033[0m] Subreddit Doesn't exist")
+                exit()
+            args.subreddit = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/[^\s\/$.?#]+', args.subreddit)[0] + "/"
 
-    if args.output == None and os.path.exists(str(args.output)) != True:
-        print(f"[\033[31mError\033[0m] Location is dosen't exist, please type good location")
+        if args.output == None and os.path.exists(str(args.output)) != True:
+            print(f"[\033[31mError\033[0m] Location is dosen't exist, please type good location")
+            exit()
+        
+        main(
+            url=args.url,
+            output=args.output,
+            subreddit=args.subreddit,
+            page=args.page
+        ).run()
+    except KeyboardInterrupt:
+        print("[\033[34mInfo\033[0m] Canceling Operation")
         exit()
-    
-    main(
-        url=args.url,
-        output=args.output,
-        subreddit=args.subreddit,
-        page=args.page
-    ).run()
-
