@@ -2,7 +2,7 @@
 
 #############################################################################
 ######################## This script Made Owca525 ###########################
-################################ Ver 1.0 ####################################
+################################ Ver 1.1 ####################################
 #############################################################################
 
 Github: https://github.com/Owca525/
@@ -13,16 +13,27 @@ import concurrent.futures
 import urllib.request
 import urllib.parse
 import urllib.error
-import http.client
 import argparse
-import socket
 import time
 import re
 import os
 
+import httpx
+
+if os.name == 'nt':
+    kernel32 = ctypes.windll.kernel32
+    kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+
 parser = argparse.ArgumentParser()
 parser.usage = f"redditgrabbercli -u [url] or -s [Sub reddit] -o [output]"
-default_location = __file__[:__file__.rfind("/")+1]
+
+def create_directory(location):
+    location = [location + "/" if location.rfind("/") != len(location)-1 else location][0]
+    if os.path.exists(location):
+        print("[\033[34mInfo\033[0m] Location Exist " + location)
+        return
+    
+    os.mkdir(location)
 
 class downloader:
     header = {
@@ -82,11 +93,11 @@ class downloader:
 
     def printDataKnow(self, downloadedMB, totalMB, progress, downloadSpeed):
         print(f"\033[36mDownloaded\033[0m: \033[90m{downloadedMB:.2f} MB / {totalMB:.2f} MB ({progress:.2f}%)"
-                f" \033[36mSpeed\033[0m: \033[90m{downloadSpeed:.2f} KB/s\033[0]", end="\r")
+                f" \033[36mSpeed\033[0m: \033[90m{downloadSpeed:.2f} KB/s\033[0m", end="\r")
 
     def printDataUknown(self, downloadedMB, downloadSpeed):
         print(f"\033[36mDownloaded\033[0m: \033[90m{downloadedMB:.2f} MB"
-                f" \033[36mSpeed\033[0m: \033[90m{downloadSpeed:.2f} KB/s\033[0]", end="\r")
+                f" \033[36mSpeed\033[0m: \033[90m{downloadSpeed:.2f} KB/s\033[0m", end="\r")
         
     def option(self):
         opt = str(input("\033[34mDo you wan't delete file and Download?\033[0m [Y/n] "))
@@ -136,58 +147,20 @@ class downloader:
                 retryCounter += 1
                 time.sleep(0.5)
 
-class https:
-    head = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/jxl,image/webp,*/*;q=0.8",
-        "Cookie": "loid=00000000006fqb9uoh.2.1589114664963.Z0FBQUFBQmstTjc2WVlXdGRpNjctQnJaWWhvb1F6d3V3Y05FMG1qM29XeUVqNnVySXNQWFJZZEg1N29hUEVLY1lCWDMwbFhJTFR4SVd6UFpiZjJHSHl6RXJKNjhwNGRPZWJ1OWg2em1CV1M5UFZzUUR6Rk0xZmtpYWdXczJtcy1nS0lZdTFBRGtpSjg; csv=2; edgebucket=VaIdTmiyMaji9Ij4CC; USER=eyJwcmVmcyI6eyJ0b3BDb250ZW50RGlzbWlzc2FsVGltZSI6MCwiZ2xvYmFsVGhlbWUiOiJSRURESVQiLCJuaWdodG1vZGUiOnRydWUsImNvbGxhcHNlZFRyYXlTZWN0aW9ucyI6eyJmYXZvcml0ZXMiOmZhbHNlLCJtdWx0aXMiOmZhbHNlLCJtb2RlcmF0aW5nIjpmYWxzZSwic3Vic2NyaXB0aW9ucyI6ZmFsc2UsInByb2ZpbGVzIjpmYWxzZX0sInRvcENvbnRlbnRUaW1lc0Rpc21pc3NlZCI6MH19; eu_cookie={%22opted%22:true%2C%22nonessential%22:false}; reddit_session=504427775633%2C2023-09-06T20%3A20%3A10%2Cccaaa79c03b13578b259b63b5b2eb1b94edce569; pc=1v; csrf_token=a4978681b41a51b1038f3e0fea89f5ad; generated_session_tracker=bcdeqbohkacdkccarm.1.1686347701000.WN6kDwKGndtKifT2gnQX87OLmKTDAESsIIu3jCM-cd0DwMvM7XskSlgt7fnSNA9q24mA1wszvXjRAsPVpH4SMA; session=8337fd15263be7c2f1915dc607809ac8fa2b2bf4gAWVSQAAAAAAAABKXCq9ZUdB2RXzRd5zFn2UjAdfY3NyZnRflIwoZDliOWYwYjBlYjhmYzU1NGFhMjQyMzVmYjVjZjRkNmM1MTk3MzU0MZRzh5Qu; session_tracker=mnajjagpnlergidojp.0.1706895975008.Z0FBQUFBQmx2U3BuMlN0RHhDMkY5YXBNVXBRaEo4b3NkZDBuaUViOHJHM1E0b2JYSFAyU0t3Zmp1eTlwX1V4WXdaXzZlaUQ3NnVERDROSy1rc2Z3cDBkUHAtZ2FhcXhwaHVfYzdJQjNXNkNraS1sdllfOW05bjJRa3E1SG1IVkFxQllDbWlxVnBBRG0; token_v2=eyJhbGciOiJSUzI1NiIsImtpZCI6IlNIQTI1NjpzS3dsMnlsV0VtMjVmcXhwTU40cWY4MXE2OWFFdWFyMnpLMUdhVGxjdWNZIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyIiwiZXhwIjoxNzA2OTgxNjQ2Ljk3NDEwOCwiaWF0IjoxNzA2ODk1MjQ2Ljk3NDEwOCwianRpIjoiS2F5cXRCc21tcnRCbk9yR2QyYVlVUmp6WGRXalRnIiwiY2lkIjoiOXRMb0Ywc29wNVJKZ0EiLCJsaWQiOiJ0Ml82ZnFiOXVvaCIsImFpZCI6InQyXzZmcWI5dW9oIiwibGNhIjoxNTg5MTE0NjY0OTYzLCJzY3AiOiJlSnhra2RHT3REQUloZC1sMXo3Ql95cF9OaHRzY1lhc0xRYW9rM243RFZvY2s3MDdjTDRpSFA4bktJcUZMRTJ1QktHa0tXRUZXdE9VTmlMdjU4eTlPWkVGU3lGVFI4NDN5d29rYVVwUFVtTjVweWxSd1daa0xsZmFzVUtEQjZZcFZTNloyMEtQUzV2UTNJMUZ6MDZNcWx4V0h0VFlvM0pwYkdNSzJ4UGp6Y1pxUXlxdXk2bE1ZRmtvbjhXTGZ2eUctdFktZjdiZmhIWXdyS2dLRF9UT3VGeHdZX0hERkhiX25wcjBiRjJ3cUwzWGc5US0xLU4yN2JObW9kbTVfVnpQdnphU2NUbUc1aWZZdjd0LUNSMTQ1SG1aVVFjd1lnMF95ckFqNl9Ddk9vREtCUVdNSlloUEk1QXJsMl9fSmRpdVRmOGF0eWQtLUdiRVRXXzRyUm1vNXhMRW9VX2o2emNBQVBfX1hEX2U0dyIsInJjaWQiOiJIbWcyN002UGQzR1Q0MkNnY01FMG4wRnhpTjc0Q2VGbEQxZkZPSC1FVUc0IiwiZmxvIjoyfQ.NCZx8kEd9G-4NOayk24t2j7kXuxphKR4mmdbmEONtfXKrfEQSCkUg0FcrizdiB0vRGhOIx89-2-aLmgDwTlLxcJfN4NyytqQIPOkccVdseHISO9Bxh3uz_8I_9RGP19-Uul1cL95iL4mSVxsHon5te9Si1yjogabmQidVjHcIJl5B-vaNewHOPmYodnvUuWGY6V3y17gpOQWq7tTKfb14D0btbFd6XTB9iTDlJtvmfvrYIGe4lDn5LVEySyLpFG-DEWzecdgFvrAxLNad6e44IHZT0VUTaeYKn4Zwbq8VIbiSLNt-fxj_RBjPG6PGOsIeCbWuJUyJvmdYyg5dNcCEw",
-    }
-
-    def __init__(self, header = {}, timeout = 30, decode = "utf-8") -> None:
-        self.timeout = timeout
-        self.header = self.head
-        if header != {}:
-            self.header = header
-
-        self.decode = "utf-8"
-        if decode != "":
-            self.decode = decode
-
-        self.status = None
-        self.text = None
-
-        self.headerConnection = ""
-
-    def get(self,url):
-        socket.setdefaulttimeout(self.timeout)
-        try:
-            connection = http.client.HTTPSConnection(http.client.urlsplit(url).netloc)
-            connection.request("GET", http.client.urlsplit(url).path,headers=self.header)
-            response = connection.getresponse()
-
-            self.status = response.status
-            self.headerConnection = response.headers
-
-            if self.status == 200:
-                self.text = response.read().decode(self.decode)
-            if self.status == 403:
-                print(f"\033[91mForbidden 403: {url}\033[0m")
-
-        except socket.timeout:
-            self.status = 408
-            self.text = None
-        except UnicodeDecodeError:
-            self.text = None
-        finally:
-            connection.close()
+head3 = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/jxl,image/webp,*/*;q=0.8",
+    "Cookie": "loid=00000000006fqb9uoh.2.1589114664963.Z0FBQUFBQmstTjc2WVlXdGRpNjctQnJaWWhvb1F6d3V3Y05FMG1qM29XeUVqNnVySXNQWFJZZEg1N29hUEVLY1lCWDMwbFhJTFR4SVd6UFpiZjJHSHl6RXJKNjhwNGRPZWJ1OWg2em1CV1M5UFZzUUR6Rk0xZmtpYWdXczJtcy1nS0lZdTFBRGtpSjg; csv=2; edgebucket=VaIdTmiyMaji9Ij4CC; USER=eyJwcmVmcyI6eyJ0b3BDb250ZW50RGlzbWlzc2FsVGltZSI6MCwiZ2xvYmFsVGhlbWUiOiJSRURESVQiLCJuaWdodG1vZGUiOnRydWUsImNvbGxhcHNlZFRyYXlTZWN0aW9ucyI6eyJmYXZvcml0ZXMiOmZhbHNlLCJtdWx0aXMiOmZhbHNlLCJtb2RlcmF0aW5nIjpmYWxzZSwic3Vic2NyaXB0aW9ucyI6ZmFsc2UsInByb2ZpbGVzIjpmYWxzZX0sInRvcENvbnRlbnRUaW1lc0Rpc21pc3NlZCI6MH19; eu_cookie={%22opted%22:true%2C%22nonessential%22:false}; reddit_session=504427775633%2C2023-09-06T20%3A20%3A10%2Cccaaa79c03b13578b259b63b5b2eb1b94edce569; pc=1v; csrf_token=a4978681b41a51b1038f3e0fea89f5ad; generated_session_tracker=bcdeqbohkacdkccarm.1.1686347701000.WN6kDwKGndtKifT2gnQX87OLmKTDAESsIIu3jCM-cd0DwMvM7XskSlgt7fnSNA9q24mA1wszvXjRAsPVpH4SMA; session=8337fd15263be7c2f1915dc607809ac8fa2b2bf4gAWVSQAAAAAAAABKXCq9ZUdB2RXzRd5zFn2UjAdfY3NyZnRflIwoZDliOWYwYjBlYjhmYzU1NGFhMjQyMzVmYjVjZjRkNmM1MTk3MzU0MZRzh5Qu; session_tracker=mnajjagpnlergidojp.0.1706895975008.Z0FBQUFBQmx2U3BuMlN0RHhDMkY5YXBNVXBRaEo4b3NkZDBuaUViOHJHM1E0b2JYSFAyU0t3Zmp1eTlwX1V4WXdaXzZlaUQ3NnVERDROSy1rc2Z3cDBkUHAtZ2FhcXhwaHVfYzdJQjNXNkNraS1sdllfOW05bjJRa3E1SG1IVkFxQllDbWlxVnBBRG0; token_v2=eyJhbGciOiJSUzI1NiIsImtpZCI6IlNIQTI1NjpzS3dsMnlsV0VtMjVmcXhwTU40cWY4MXE2OWFFdWFyMnpLMUdhVGxjdWNZIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyIiwiZXhwIjoxNzA2OTgxNjQ2Ljk3NDEwOCwiaWF0IjoxNzA2ODk1MjQ2Ljk3NDEwOCwianRpIjoiS2F5cXRCc21tcnRCbk9yR2QyYVlVUmp6WGRXalRnIiwiY2lkIjoiOXRMb0Ywc29wNVJKZ0EiLCJsaWQiOiJ0Ml82ZnFiOXVvaCIsImFpZCI6InQyXzZmcWI5dW9oIiwibGNhIjoxNTg5MTE0NjY0OTYzLCJzY3AiOiJlSnhra2RHT3REQUloZC1sMXo3Ql95cF9OaHRzY1lhc0xRYW9rM243RFZvY2s3MDdjTDRpSFA4bktJcUZMRTJ1QktHa0tXRUZXdE9VTmlMdjU4eTlPWkVGU3lGVFI4NDN5d29rYVVwUFVtTjVweWxSd1daa0xsZmFzVUtEQjZZcFZTNloyMEtQUzV2UTNJMUZ6MDZNcWx4V0h0VFlvM0pwYkdNSzJ4UGp6Y1pxUXlxdXk2bE1ZRmtvbjhXTGZ2eUctdFktZjdiZmhIWXdyS2dLRF9UT3VGeHdZX0hERkhiX25wcjBiRjJ3cUwzWGc5US0xLU4yN2JObW9kbTVfVnpQdnphU2NUbUc1aWZZdjd0LUNSMTQ1SG1aVVFjd1lnMF95ckFqNl9Ddk9vREtCUVdNSlloUEk1QXJsMl9fSmRpdVRmOGF0eWQtLUdiRVRXXzRyUm1vNXhMRW9VX2o2emNBQVBfX1hEX2U0dyIsInJjaWQiOiJIbWcyN002UGQzR1Q0MkNnY01FMG4wRnhpTjc0Q2VGbEQxZkZPSC1FVUc0IiwiZmxvIjoyfQ.NCZx8kEd9G-4NOayk24t2j7kXuxphKR4mmdbmEONtfXKrfEQSCkUg0FcrizdiB0vRGhOIx89-2-aLmgDwTlLxcJfN4NyytqQIPOkccVdseHISO9Bxh3uz_8I_9RGP19-Uul1cL95iL4mSVxsHon5te9Si1yjogabmQidVjHcIJl5B-vaNewHOPmYodnvUuWGY6V3y17gpOQWq7tTKfb14D0btbFd6XTB9iTDlJtvmfvrYIGe4lDn5LVEySyLpFG-DEWzecdgFvrAxLNad6e44IHZT0VUTaeYKn4Zwbq8VIbiSLNt-fxj_RBjPG6PGOsIeCbWuJUyJvmdYyg5dNcCEw",
+}
 
 class post_grabber:
-    def __init__(self) -> None:
+    def __init__(self, subreddit = str) -> None:
         self.media_prieview_patern = r'<div class="media-preview-content">.*?</div>'
         self.gallery_thumbnail_patern = r'<a class="may-blank gallery-item-thumbnail-link".*?href="(.*?)".*?>'
         self.url_find_pattern = r'<a[^>]*class="[^"]*title[^"]*may-blank[^"]*outbound[^"]*"[^>]*href="([^"]+)"[^>]*>'
         self.reddit_content_url_patern = r'https://i\.redd\.it/[^"]+'
         self.html_content = str
+        self.subreddit = subreddit
 
         self.return_list = []
     
@@ -202,14 +175,11 @@ class post_grabber:
     def grabber(self, url: str):
         findID = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/)?gallery\/',url)
         if findID != []:
-            url = "https://old.reddit.com/r/hentai/comments/" + re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',url)[0]
-        req = https()
-        req.get(url.replace("www.reddit.com","old.reddit.com").replace("i.reddit.com","old.reddit.com").replace("new.reddit.com","old.reddit.com"))
+            url = f"https://old.reddit.com/r/{self.subreddit[0]}/comments/" + re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',url)[0]
 
-        if req.headerConnection["location"] != None:
-            req.get(req.headerConnection["location"])
+        req = httpx.get(url=url.replace("www.reddit.com","old.reddit.com").replace("i.reddit.com","old.reddit.com").replace("new.reddit.com","old.reddit.com"),headers=head3)
 
-        if req.text != None and req.status == 200:
+        if req.text != None and req.status_code == 200:
             self.html_content = req.text
             content = self.find_content()
 
@@ -226,6 +196,7 @@ class post_grabber:
                 self.return_list.append(content[1][0])
 
             return self.return_list
+        return []
 
 class subreddit_grabber:
     def __init__(self) -> None:
@@ -233,14 +204,11 @@ class subreddit_grabber:
         self.next_button = str
 
     def grabber(self, url):
-        connect = https()
-        connect.get(url.replace("www.reddit.com","old.reddit.com").replace("i.reddit.com","old.reddit.com").replace("new.reddit.com","old.reddit.com"))
-        if connect.headerConnection["location"] != None:
-            connect.get(connect.headerConnection["location"])
+        connect = httpx.get(url=url.replace("www.reddit.com","old.reddit.com").replace("i.reddit.com","old.reddit.com").replace("new.reddit.com","old.reddit.com"),headers=head3)
 
-        if connect.status == 200:
+        if connect.status_code == 200:
             self.next_button = re.findall(r'<span\s+class="next-button"[^>]*>\s*<a\s+href="([^"]+)"[^>]*>.*?</a>\s*</span>', connect.text)[0].replace("amp;","")
-            self.post = re.findall(r'<a\s+[^>]*\bclass="[^"]*thumbnail[^"]*"\s+[^>]*\bhref="([^"]+)"[^>]*>',connect.text)
+            self.posts = re.findall(r'<a\s+[^>]*\bclass="[^"]*thumbnail[^"]*"\s+[^>]*\bhref="([^"]+)"[^>]*>',connect.text)
     
 class main:
     def __init__(self, url: str, output: str, subreddit: str, page: int) -> None:
@@ -251,14 +219,15 @@ class main:
     
     def sort(self, url):
         if re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',url) == []:
-            print(f"[Url extracted]: {url}")
+            print(f"[\033[32mURL Extracted\033[0m]: {url}")
             return
         
         if re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/)?gallery\/',url) != []:
-            print("[Info] Gallery Download")
-            post = post_grabber()
+            print("[\033[34mInfo\033[0m] Gallery Download")
+            post = post_grabber(subreddit=re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/([^\s\/$.?#]+)', self.subreddit))
             postID = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',url)[0]
-            os.mkdir(self.output + postID)
+            create_directory(self.output + postID)
+            post.grabber(url)
             for item in post.grabber(url):
                 downloader(
                     url=item,
@@ -275,12 +244,12 @@ class main:
         if self.url != None:
             urls = post_grabber().grabber(self.url)
             if urls == []:
-                print("[Info] Nothing found")
+                print("[\033[34mInfo\033[0m] Nothing found")
                 exit()
             
             if re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',urls[0]) == []:
                 for item in urls:
-                    print(f"[Url extracted]: {item}")
+                    print(f"[\033[32mURL Extracted\033[0m]: {item}")
                 exit()
 
             if len(urls) == 1:
@@ -291,7 +260,7 @@ class main:
                 exit()
             
             postID = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|i\.|new\.)?(?:reddit\.com|redd\.it)\/(?:r\/[^\s\/$.?#]+\/comments\/)?(?:gallery\/)?([^\s\/$.?#]+)',self.url)[0]
-            os.mkdir(self.output + postID)
+            create_directory(self.output + postID)
             for item in urls:
                 downloader(
                     url=item,
@@ -303,8 +272,8 @@ class main:
             for item in range(self.page):
                 sub = subreddit_grabber()
                 sub.grabber(self.subreddit)
-                #map(self.sort, sub.post)
-                for item in sub.post:
+                #map(self.sort, sub.post)9
+                for item in list(set(sub.posts)):
                     self.sort(item)
                 self.subreddit = sub.next_button
 
@@ -316,20 +285,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.subreddit == None and re.findall(r'^(https?:\/\/)?(www\.|old\.|i\.|new\.)?(reddit\.com|redd\.it)\/[^\s\/$.?#].[^\s]*$',str(args.url)) == [] and args.url:
-        print('[Error] Wrong url')
+        print('[\033[31mError\033[0m] Wrong url')
         exit()
     
     if args.subreddit != None:
-        connect = https()
-        connect.get(re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/[^\s\/$.?#]+', args.subreddit)[0])
-        if connect.status == 404:
-            print("[Error] Subreddit Doesn't exist")
+        connect = httpx.get(url=re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/[^\s\/$.?#]+', args.subreddit)[0])
+        if connect.status_code == 404:
+            print("[\033[31mError\033[0m] Subreddit Doesn't exist")
             exit()
-        args.subreddit = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/[^\s\/$.?#]+', args.subreddit)[0]
+        args.subreddit = re.findall(r'(?:https?:\/\/)?(?:www\.|old\.|new\.)?reddit\.com\/r\/[^\s\/$.?#]+', args.subreddit)[0] + "/"
 
     if args.output == None and os.path.exists(str(args.output)) != True:
-        print(f"[Info]: Setting Default location: {default_location}")
-        args.output = default_location
+        print(f"[\033[31mError\033[0m] Location is dosen't exist, please type good location")
+        exit()
     
     main(
         url=args.url,
